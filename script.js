@@ -7,6 +7,7 @@ let map, mapEvent;
 class Workout {
     date = new Date();
     id = (Date.now() + '').slice(-10);
+    clicks = 0;
 
     constructor(coords, distance, duration) {
         this.coords = coords; // [lat,lng]
@@ -18,6 +19,9 @@ class Workout {
         // prettier-ignore
         const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
         this.description = `${this.type[0].toUpperCase()}${this.type.slice(1)} on ${months[this.date.getMonth()]} ${this.date.getDate()}`
+    }
+    click() {
+        this.clicks++;
     }
 }
 
@@ -74,12 +78,17 @@ class App {
     _map;
     _mapEvent;
     _workouts = [];
+    _mapZoomLevel = 13;
     constructor() {
+        //user positon
         this._getPosition();
-
+        //get loc storage
+        this._getLocalStorage();
+        //attach event handkers
         form.addEventListener('submit', this._newWorkour.bind(this));
         //input events
-        inputType.addEventListener('change', this._toggleElevatationField.bind(this))
+        inputType.addEventListener('change', this._toggleElevatationField.bind(this));
+        containerWorkouts.addEventListener('click', this._moveToPopup.bind(this))
     }
 
 
@@ -97,14 +106,18 @@ class App {
         const { longitude } = position.coords
         const coords = [latitude, longitude]
             //map
-        this._map = L.map('map').setView(coords, 13);
+        this._map = L.map('map').setView(coords, this._mapZoomLevel);
         // console.log(L);
         L.tileLayer('http://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(this._map);
 
         //handlig a click on the map
-        this._map.on('click', this._showForm.bind(this))
+        this._map.on('click', this._showForm.bind(this));
+
+        this._workouts.forEach(work => {
+            this._renderWorkoutMarker(work);
+        });
     }
     _showForm(mapE) {
 
@@ -168,7 +181,9 @@ class App {
             this._renderWorkout(workout);
             //hide+
             //clear inputs fields
-            this._hideForm()
+            this._hideForm();
+            //set local storage to all workouts
+            this._setLocalStorage();
         }
         //display a marker
 
@@ -235,5 +250,36 @@ class App {
             `;
         form.insertAdjacentHTML('afterend', html);
     }
+
+    _moveToPopup(e) {
+        const workoutEl = e.target.closest('.workout');
+        if (!workoutEl) return;
+        const workout = this._workouts.find(work => work.id === workoutEl.dataset.id);
+        this._map.setView(workout.coords, this._mapZoomLevel, {
+            animate: true,
+            pan: {
+                duration: 1,
+            }
+        });
+        // Using the public interface
+        // workout.click();
+    }
+    _setLocalStorage() {
+        localStorage.setItem('workouts', JSON.stringify(this._workouts))
+    }
+    _getLocalStorage() {
+        const data = JSON.parse(localStorage.getItem('workouts'))
+        if (!data) return;
+        this._workouts = data;
+        this._workouts.forEach(work => {
+            this._renderWorkout(work);
+        });
+    }
+    reset() {
+        localStorage.removeItem('workouts');
+        location.reload();
+    }
 }
+
+
 const app = new App();
